@@ -111,7 +111,7 @@ export const CasesTable: React.FC<CasesTableProps> = ({
             className={twMerge('px-6 py-4 max-w-md h-full flex flex-col justify-center', row.original.duplicate_of && 'bg-yellow-50')}
           >
             <div className="text-sm text-gray-900">
-              <div style={{ display: 'ruby' }}>{row.original.case_title} <span className="text-yellow-500"><Warning /></span></div>
+              <div style={{ display: 'ruby' }}>{row.original.case_title} {row.original.duplicate_of && <span className="text-yellow-500"><Warning /></span>}</div>
               {row.original.duplicate_of && (
                 <div className="flex items-center gap-1 mt-1 text-xs text-yellow-600">
                   Flagged: Duplicate of #CLM-{row.original.duplicate_of}

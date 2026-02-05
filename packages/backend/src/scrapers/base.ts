@@ -93,16 +93,25 @@ export abstract class BaseScraper {
 	}
 
 	protected extractBrandFromTitle(title: string): string {
-		// Try to extract brand name from title
-		// Common patterns: "Brand Name Settlement", "Brand Class Action"
-		const match = title.match(/^([^-–:]+?)(?:\s+(?:settlement|class action|lawsuit|data breach))/i);
-		if (match) {
-			return match[1].trim();
+		// Step 1: Remove leading dollar amounts (e.g., "$625,000", "$7.15M", "$10.5M")
+		let cleanTitle = title.replace(/^\$[\d,.]+(M|K|B)?\s+/i, '').trim();
+
+		// Step 2: Split on key phrases (class action, settlement, lawsuit) and take the first part
+		const parts = cleanTitle.split(/\s+(?:class\s+action|settlement|lawsuit)/i);
+		if (parts.length > 0 && parts[0].trim()) {
+			let brand = parts[0].trim();
+
+			// Step 3: Remove trailing descriptive words that aren't part of the brand name
+			brand = brand.replace(/\s+(subscription|deceptive\s+discounts?|text\s+messages?|data\s+breach|privacy|security|false\s+advertising)$/i, '').trim();
+
+			if (brand) {
+				return brand;
+			}
 		}
 
 		// Fallback: take first part before separator
-		const parts = title.split(/[-–:]/);
-		return parts[0].trim();
+		const separatorParts = title.split(/[-–:]/);
+		return separatorParts[0].trim();
 	}
 
 	public abstract scrape(): Promise<ScrapedCase[]>;
