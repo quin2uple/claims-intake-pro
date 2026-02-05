@@ -41,49 +41,52 @@ export class TopClassActionsScraper extends BaseScraper {
 
   public async scrape(): Promise<ScrapedCase[]> {
     const cases: ScrapedCase[] = [];
-    const maxPages = 10; // Limit to prevent infinite loops
+    const maxPages = 20; // Limit to prevent infinite loops
 
     try {
       await this.initBrowser();
       if (!this.page) throw new Error('Failed to initialize browser');
 
       const baseUrl = `${this.baseUrl}/category/lawsuit-settlements/open-lawsuit-settlements/`;
+      logger.info(`Scraping TopClassActions: ${baseUrl}`);
 
-      for (let pageNum = 1; pageNum <= maxPages; pageNum++) {
-        const url = pageNum === 1 ? baseUrl : `${baseUrl}page/${pageNum}/`;
-        logger.info(`Scraping TopClassActions page ${pageNum}: ${url}`);
+      let retries = 3;
+      let pageLoaded = false;
 
-        // Retry logic for page navigation
-        let retries = 3;
-        let pageLoaded = false;
+      while (retries > 0 && !pageLoaded) {
+        try {
+          await this.page.goto(baseUrl, {
+            waitUntil: 'domcontentloaded',
+            timeout: 45000,
+          });
 
-        while (retries > 0 && !pageLoaded) {
-          try {
-            await this.page.goto(url, {
-              waitUntil: 'domcontentloaded', // Changed from networkidle2 for faster loading
-              timeout: 45000, // 45 seconds
-            });
+          await this.page.waitForSelector('li.single-post-wrap', {
+            timeout: 15000,
+          });
 
-            // Wait for settlement cards to load
-            await this.page.waitForSelector('li.single-post-wrap, .cb5-post-layout, article, .post', {
-              timeout: 15000, // 15 seconds
-            });
-
-            pageLoaded = true;
-          } catch (navError) {
-            retries--;
-            logger.warn(`Navigation attempt failed, retries left: ${retries}`, navError);
-            if (retries === 0) {
-              throw navError;
-            }
-            // Wait before retry
-            await new Promise((resolve) => setTimeout(resolve, 3000));
+          pageLoaded = true;
+        } catch (navError) {
+          retries--;
+          logger.warn(`Navigation attempt failed, retries left: ${retries}`, navError);
+          if (retries === 0) {
+            throw navError;
           }
+          await new Promise((resolve) => setTimeout(resolve, 3000));
         }
+      }
+
+      let pageNum = 1;
+      let hasMorePages = true;
+
+      while (hasMorePages && pageNum <= maxPages) {
+        logger.info(`Scraping TopClassActions page ${pageNum}`);
 
         try {
           // Scroll to load lazy content
           await this.autoScroll(this.page);
+
+          // Wait a bit for content to fully load after scroll
+          await new Promise((resolve) => setTimeout(resolve, 2000));
 
           // Extract settlement data
           const pageData = await this.page.evaluate(() => {
@@ -186,20 +189,41 @@ export class TopClassActionsScraper extends BaseScraper {
             }
           }
 
-          // Check if there's a next page
-          const hasNextPage = await this.page.evaluate(() => {
+          // Check if next button is inactive (last page)
+          const nextButtonState = await this.page.evaluate(() => {
             // @ts-ignore - document is available in browser context
-            const nextButton = document.querySelector('a.next, .next-page, [rel="next"]');
-            return !!nextButton;
+            const nextButton = document.querySelector('li.next-arrow');
+            if (!nextButton) return { exists: false, isInactive: true };
+
+            const isInactive = nextButton.classList.contains('inactive');
+            return { exists: true, isInactive };
           });
 
-          if (!hasNextPage || pageData.length === 0) {
-            logger.info('No more pages to scrape');
+          if (!nextButtonState.exists || nextButtonState.isInactive) {
+            logger.info('Reached last page (next button is inactive)');
+            hasMorePages = false;
             break;
           }
 
-          // Wait before next page
-          await new Promise((resolve) => setTimeout(resolve, 2000));
+          // Click the next button to go to next page
+          logger.info('Clicking next button to load next page...');
+          await this.page.evaluate(() => {
+            // @ts-ignore - document is available in browser context
+            const nextButton: any = document.querySelector('li.next-arrow');
+            if (nextButton && !nextButton.classList.contains('inactive')) {
+              nextButton.click();
+            }
+          });
+
+          // Wait for new content to load after clicking next
+          await new Promise((resolve) => setTimeout(resolve, 3000));
+
+          // Wait for the page to update (cards to refresh)
+          await this.page.waitForSelector('li.single-post-wrap', {
+            timeout: 10000,
+          });
+
+          pageNum++;
         } catch (error) {
           logger.error(`Error scraping page ${pageNum}:`, error);
           break;
