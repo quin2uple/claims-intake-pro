@@ -1,0 +1,29 @@
+{
+  "name": "claims-intake-pro",
+  "version": "1.0.0",
+  "description": "Internal tool for discovering and managing class action lawsuits and settlements",
+  "private": true,
+  "scripts": {
+    "dev": "pnpm --parallel -r dev",
+    "build": "pnpm -r build",
+    "start": "pnpm --parallel -r start",
+    "clean": "pnpm -r clean",
+    "docker:up": "docker-compose up -d",
+    "docker:down": "docker-compose down",
+    "docker:build": "docker-compose build",
+    "db:migrate": "pnpm --filter @claims-intake/backend db:migrate",
+    "db:seed": "pnpm --filter @claims-intake/backend db:seed",
+    "scrape": "pnpm --filter @claims-intake/backend scrape"
+  },
+  "workspaces": [
+    "packages/*"
+  ],
+  "devDependencies": {
+    "@types/node": "^20.10.0",
+    "typescript": "^5.3.3"
+  },
+  "engines": {
+    "node": ">=18.0.0",
+    "pnpm": ">=8.0.0"
+  }
+}

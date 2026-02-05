@@ -1,0 +1,81 @@
+generator client {
+  provider = "prisma-client-js"
+}
+
+datasource db {
+  provider = "postgresql"
+  url      = env("DATABASE_URL")
+}
+
+enum CaseStatus {
+  new
+  pending
+  flagged
+  approved
+  rejected
+  duplicate
+}
+
+enum SourceType {
+  ClaimDepot
+  ClassActionOrg
+  TopClassActions
+  Manual
+}
+
+model Case {
+  id               Int         @id @default(autoincrement())
+  brand            String      @db.VarChar(255)
+  caseTitle        String      @map("case_title") @db.Text
+  source           SourceType
+  sourceUrl        String      @unique @map("source_url") @db.Text
+  deadline         DateTime?   @db.Date
+  description      String?     @db.Text
+  status           CaseStatus  @default(new)
+  duplicateOfId    Int?        @map("duplicate_of")
+  duplicateOf      Case?       @relation("CaseDuplicates", fields: [duplicateOfId], references: [id])
+  duplicates       Case[]      @relation("CaseDuplicates")
+  similarityScore  Decimal?    @map("similarity_score") @db.Decimal(5, 4)
+  createdAt        DateTime    @default(now()) @map("created_at") @db.Timestamp()
+  updatedAt        DateTime    @updatedAt @map("updated_at") @db.Timestamp()
+  reviewedAt       DateTime?   @map("reviewed_at") @db.Timestamp()
+  reviewedBy       String?     @map("reviewed_by") @db.VarChar(255)
+  
+  activityLogs     ActivityLog[]
+
+  @@index([brand])
+  @@index([status])
+  @@index([source])
+  @@index([createdAt(sort: Desc)])
+  @@index([deadline])
+  @@map("cases")
+}
+
+model ScrapeHistory {
+  id          Int        @id @default(autoincrement())
+  source      SourceType
+  startedAt   DateTime   @map("started_at") @db.Timestamp()
+  completedAt DateTime?  @map("completed_at") @db.Timestamp()
+  status      String     @db.VarChar(50)
+  casesFound  Int        @default(0) @map("cases_found")
+  casesAdded  Int        @default(0) @map("cases_added")
+  casesSkipped Int       @default(0) @map("cases_skipped")
+  errorMessage String?   @map("error_message") @db.Text
+  createdAt   DateTime   @default(now()) @map("created_at") @db.Timestamp()
+
+  @@map("scrape_history")
+}
+
+model ActivityLog {
+  id             Int        @id @default(autoincrement())
+  caseId         Int        @map("case_id")
+  case           Case       @relation(fields: [caseId], references: [id])
+  action         String     @db.VarChar(100)
+  previousStatus CaseStatus? @map("previous_status")
+  newStatus      CaseStatus? @map("new_status")
+  userName       String?    @map("user_name") @db.VarChar(255)
+  notes          String?    @db.Text
+  createdAt      DateTime   @default(now()) @map("created_at") @db.Timestamp()
+
+  @@map("activity_log")
+}
