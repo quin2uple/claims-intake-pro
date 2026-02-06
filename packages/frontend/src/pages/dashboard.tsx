@@ -1,4 +1,4 @@
-import React, { useState } from 'react';
+import React, { useState, useEffect } from 'react';
 import { useNavigate } from 'react-router-dom';
 import { DashboardHeader, FilterBar, CasesTable, StatsCards } from '@/components/dashboard';
 import { getCaseDetailRoute } from '@/constants';
@@ -18,6 +18,10 @@ export const Dashboard: React.FC = () => {
   // Pagination (0-indexed for TanStack Table)
   const [currentPage, setCurrentPage] = useState(0);
 
+  useEffect(() => {
+    setCurrentPage(0);
+  }, [searchBrand, source, status, deadline]);
+
   // React Query hooks (API is 1-indexed, but TanStack Table is 0-indexed)
   const { data: casesData, isLoading: casesLoading } = useCases({
     brand: searchBrand || undefined,
@@ -35,11 +39,11 @@ export const Dashboard: React.FC = () => {
   const cases = casesData?.cases || [];
   const pagination = casesData?.pagination
     ? {
-        pageIndex: currentPage,
-        pageSize: ITEMS_PER_PAGE,
-        totalItems: casesData.pagination.total,
-        totalPages: casesData.pagination.totalPages,
-      }
+      pageIndex: currentPage,
+      pageSize: ITEMS_PER_PAGE,
+      totalItems: casesData.pagination.total,
+      totalPages: casesData.pagination.totalPages,
+    }
     : undefined;
 
   const handleViewCase = (id: number) => {
