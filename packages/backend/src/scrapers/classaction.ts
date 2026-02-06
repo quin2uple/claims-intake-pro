@@ -12,33 +12,15 @@ export class ClassActionScraper extends BaseScraper {
 
   private async initBrowser(): Promise<void> {
     if (!this.browser) {
-      // Add stealth plugin to avoid detection
       puppeteer.use(StealthPlugin());
 
       this.browser = await puppeteer.launch({
-        headless: true, // Must be true in Docker (no display)
+        headless: true,
         args: [
           '--no-sandbox',
           '--disable-setuid-sandbox',
           '--disable-dev-shm-usage',
-          '--disable-accelerated-2d-canvas',
-          '--disable-gpu',
           '--disable-blink-features=AutomationControlled',
-          '--disable-features=IsolateOrigins,site-per-process',
-          '--window-size=1920,1080',
-          '--disable-web-security',
-          '--disable-features=VizDisplayCompositor',
-          '--disable-breakpad',
-          '--disable-canvas-aa',
-          '--disable-2d-canvas-clip-aa',
-          '--disable-gl-drawing-for-tests',
-          '--enable-webgl',
-          '--hide-scrollbars',
-          '--mute-audio',
-          '--no-first-run',
-          '--no-zygote',
-          '--use-gl=swiftshader',
-          '--deterministic-fetch',
         ],
         timeout: 60000,
       });
@@ -49,18 +31,13 @@ export class ClassActionScraper extends BaseScraper {
 
       this.page = await this.browser.newPage();
       await this.page.setViewport({ width: 1920, height: 1080 });
-
-      // Set realistic user agent and headers
       await this.page.setUserAgent(
         'Mozilla/5.0 (Windows NT 10.0; Win64; x64) AppleWebKit/537.36 (KHTML, like Gecko) Chrome/120.0.0.0 Safari/537.36'
       );
-
-      // Set extra headers to appear more like a real browser
       await this.page.setExtraHTTPHeaders({
         'Accept-Language': 'en-US,en;q=0.9',
         'Accept': 'text/html,application/xhtml+xml,application/xml;q=0.9,image/webp,*/*;q=0.8',
       });
-
       await this.page.setDefaultNavigationTimeout(90000);
     }
   }
@@ -87,135 +64,38 @@ export class ClassActionScraper extends BaseScraper {
 
       const pageUrl = page.url();
 
-      // Step 1: Wait for Cloudflare challenge config to be injected
-      logger.info('Waiting for Cloudflare challenge configuration to load...');
       await new Promise(resolve => setTimeout(resolve, 3000));
 
-      // Extract Cloudflare challenge parameters (for Challenge pages)
       const challengeParams = await page.evaluate(() => {
         // @ts-ignore
         const cfOpt = window._cf_chl_opt;
-        if (!cfOpt) {
-          console.log('window._cf_chl_opt not found!');
-          return null;
-        }
+        if (!cfOpt) return null;
 
-        console.log('Found window._cf_chl_opt:', Object.keys(cfOpt));
-
-        // According to 2Captcha docs for Cloudflare Challenge pages:
-        // - action = cfOpt.cType (e.g., "interactive", "managed")
-        // - data (cData) = cfOpt.md
-        // - pagedata (chlPageData) = cfOpt.mdrd
         return {
           action: cfOpt.cType,
           cData: cfOpt.md,
           chlPageData: cfOpt.mdrd,
-          cRay: cfOpt.cRay,
-          cZone: cfOpt.cZone,
         };
       });
 
-      logger.info(`Challenge params found: ${JSON.stringify({
-        hasCData: !!challengeParams?.cData,
-        hasChlPageData: !!challengeParams?.chlPageData,
-        action: challengeParams?.action
-      })}`);
-
-      // Step 2: Extract sitekey from the page
       let sitekey = await this.extractTurnstileSitekey(page);
 
       if (!sitekey) {
-        logger.error('Could not extract Turnstile sitekey from page');
-
-        // Debug: Get more info about what's on the page
-        const debugInfo = await page.evaluate(() => {
-          return {
-            // @ts-ignore
-            hasTurnstileInput: !!document.querySelector('[name="cf-turnstile-response"]'),
-            // @ts-ignore
-            hasIframes: document.querySelectorAll('iframe').length,
-            // @ts-ignore
-            iframeSrcs: Array.from(document.querySelectorAll('iframe')).map(f => f.src).slice(0, 3).join(', '),
-            // @ts-ignore
-            scriptCount: document.querySelectorAll('script').length,
-            // @ts-ignore
-            hasWindowTurnstile: typeof window.turnstile !== 'undefined',
-          };
-        });
-
-        logger.info(`Turnstile debug: ${JSON.stringify(debugInfo)}`);
-
-        // Wait for the Cloudflare challenge platform to fully load
-        logger.info('Waiting for Cloudflare challenge platform to render Turnstile widget...');
-
-        try {
-          // Wait for either an iframe OR for the page title to change (indicating the challenge loaded)
-          await Promise.race([
-            page.waitForSelector('iframe[src*="challenges.cloudflare.com"]', { timeout: 20000 }),
-            // @ts-ignore
-            page.waitForFunction(() => !document.title.includes('Just a moment'), { timeout: 20000 })
-          ]);
-
-          logger.info('Turnstile widget loaded or page changed');
-          await new Promise(resolve => setTimeout(resolve, 3000)); // Give it a moment to stabilize
-        } catch (err) {
-          logger.warn(`Timeout waiting for Turnstile widget: ${err}`);
-        }
-
-        // Check again
-        const debugInfo2 = await page.evaluate(() => {
-          return {
-            // @ts-ignore
-            title: document.title,
-            // @ts-ignore
-            hasIframes: document.querySelectorAll('iframe').length,
-            // @ts-ignore
-            iframeSrcs: Array.from(document.querySelectorAll('iframe')).map(f => f.src).slice(0, 3),
-          };
-        });
-        logger.info(`After waiting for widget: ${JSON.stringify(debugInfo2)}`);
-
-        // Take screenshot to see what's displayed
-        try {
-          await page.screenshot({
-            path: '/app/cloudflare-debug.png',
-            fullPage: true
-          });
-          logger.info('📸 Screenshot saved to /app/cloudflare-debug.png');
-          logger.info('   You can copy it with: docker cp claims-intake-backend:/app/cloudflare-debug.png ./');
-        } catch (err) {
-          logger.warn(`Could not save screenshot: ${err}`);
-        }
-
-        // Save full HTML for inspection
-        try {
-          const fs = require('fs');
-          const fullHTML = await page.content();
-          fs.writeFileSync('/app/cloudflare-debug.html', fullHTML);
-          logger.info('📄 Full page HTML saved to /app/cloudflare-debug.html');
-          logger.info('   You can copy it with: docker cp claims-intake-backend:/app/cloudflare-debug.html ./');
-        } catch (err) {
-          logger.warn(`Could not save HTML: ${err}`);
-        }
-
-        // Try extracting sitekey again
+        logger.warn('Sitekey not found, waiting for Turnstile to load...');
+        await new Promise(resolve => setTimeout(resolve, 5000));
         sitekey = await this.extractTurnstileSitekey(page);
 
         if (!sitekey) {
-          logger.error('Still could not find sitekey after waiting');
+          logger.error('Failed to extract Turnstile sitekey');
           return false;
         }
-
-        logger.info(`Found sitekey after retry: ${sitekey.substring(0, 10)}...`);
-      } else {
-        logger.info(`Found sitekey: ${sitekey.substring(0, 10)}...`);
       }
 
-      // Step 2: Send CAPTCHA to 2Captcha using createTask API
-      const axios = require('axios');
-      logger.info('Sending Cloudflare Challenge to 2Captcha API v2...');
+      logger.info(`Turnstile sitekey found: ${sitekey.substring(0, 10)}...`);
 
-      // Build task object according to 2Captcha docs
+      const axios = require('axios');
+      logger.info('Sending Cloudflare Turnstile challenge to 2Captcha...');
+
       const taskPayload: any = {
         clientKey: apiKey,
         task: {
@@ -225,58 +105,32 @@ export class ClassActionScraper extends BaseScraper {
         }
       };
 
-      // Try to add challenge page parameters if available
-      // If not available, 2Captcha will try to solve it as a standalone captcha
       if (challengeParams) {
-        if (challengeParams.cData) {
-          taskPayload.task.data = challengeParams.cData;
-          logger.info('✓ Added cData to task');
-        }
-        if (challengeParams.chlPageData) {
-          taskPayload.task.pagedata = challengeParams.chlPageData;
-          logger.info('✓ Added pagedata to task');
-        }
-        if (challengeParams.action) {
-          taskPayload.task.action = challengeParams.action;
-          logger.info('✓ Added action to task');
-        }
-      } else {
-        logger.info('No challenge params found - attempting as standalone Turnstile captcha');
+        if (challengeParams.cData) taskPayload.task.data = challengeParams.cData;
+        if (challengeParams.chlPageData) taskPayload.task.pagedata = challengeParams.chlPageData;
+        if (challengeParams.action) taskPayload.task.action = challengeParams.action;
       }
-
-      logger.info(`Task payload: ${JSON.stringify({
-        ...taskPayload,
-        clientKey: '***',
-        task: {
-          ...taskPayload.task,
-          data: taskPayload.task.data ? '(present)' : '(missing)',
-          pagedata: taskPayload.task.pagedata ? '(present)' : '(missing)',
-        }
-      })}`);
 
       const submitResponse = await axios.post('https://api.2captcha.com/createTask', taskPayload, {
         headers: { 'Content-Type': 'application/json' }
       });
 
-      // Check if task was created successfully
       if (submitResponse.data.errorId !== 0) {
         logger.error(`2Captcha task creation failed: ${JSON.stringify(submitResponse.data)}`);
         return false;
       }
 
       const taskId = submitResponse.data.taskId;
-      logger.info(`✅ Task created! Task ID: ${taskId}`);
+      logger.info(`Task created with ID: ${taskId}`);
+      logger.info('Waiting for 2Captcha to solve...');
 
-      // Step 3: Poll for solution using getTaskResult
-      logger.info('Waiting for 2Captcha to solve (Cloudflare Turnstile usually takes 10-30 seconds)...');
       let solution = null;
-      let userAgent = null;
-      const maxAttempts = 60; // 60 * 5s = 5 minutes max
+      const maxAttempts = 60;
 
       for (let attempt = 0; attempt < maxAttempts; attempt++) {
         await new Promise(resolve => setTimeout(resolve, 5000));
 
-        const resultResponse = await axios.post('https://api.2captcha.com/getTaskResult', {
+        const resultResponse = await axios.post('https://api.2Captcha.com/getTaskResult', {
           clientKey: apiKey,
           taskId: taskId
         }, {
@@ -290,87 +144,54 @@ export class ClassActionScraper extends BaseScraper {
 
         if (resultResponse.data.status === 'ready') {
           solution = resultResponse.data.solution.token;
-          userAgent = resultResponse.data.solution.userAgent;
-          logger.info('✅ CAPTCHA solved by 2Captcha!');
-          logger.info(`Token: ${solution.substring(0, 20)}...`);
-          if (userAgent) {
-            logger.info(`UserAgent returned: ${userAgent.substring(0, 50)}...`);
-          }
+          logger.info('✅ CAPTCHA solved successfully!');
           break;
-        } else if (resultResponse.data.status === 'processing') {
-          if (attempt % 4 === 0) {
-            logger.info(`Still processing... (${(attempt + 1) * 5}s elapsed)`);
-          }
-        } else {
-          logger.warn(`Unexpected status: ${resultResponse.data.status}`);
+        } else if (attempt % 6 === 0) {
+          logger.info(`Processing... (${(attempt + 1) * 5}s elapsed)`);
         }
       }
 
       if (!solution) {
-        logger.error('Timeout waiting for 2Captcha solution (5 minutes)');
+        logger.error('Timeout waiting for CAPTCHA solution');
         return false;
       }
 
-      // Step 4: Inject solution into Cloudflare Challenge page
-      logger.info('Injecting CAPTCHA solution into Cloudflare Challenge page...');
+      logger.info('Injecting CAPTCHA solution...');
 
-      const injected = await page.evaluate((token) => {
-        try {
-          // Method 1: Set the hidden input value (for standalone captchas)
+      await page.evaluate((token) => {
+        // @ts-ignore
+        const responseInput = document.querySelector('[name="cf-turnstile-response"]');
+        if (responseInput) {
           // @ts-ignore
-          const responseInput = document.querySelector('[name="cf-turnstile-response"]');
-          if (responseInput) {
-            // @ts-ignore
-            responseInput.value = token;
-            console.log('Token injected into cf-turnstile-response');
-          }
+          responseInput.value = token;
+        }
 
-          // Method 2: Set g-recaptcha-response for compatibility mode
+        // @ts-ignore
+        const grecaptchaInput = document.querySelector('[name="g-recaptcha-response"]');
+        if (grecaptchaInput) {
           // @ts-ignore
-          const grecaptchaInput = document.querySelector('[name="g-recaptcha-response"]');
-          if (grecaptchaInput) {
-            // @ts-ignore
-            grecaptchaInput.value = token;
-            console.log('Token injected into g-recaptcha-response');
-          }
+          grecaptchaInput.value = token;
+        }
 
-          // Method 3: Try to call the callback function (for Challenge pages)
+        // @ts-ignore
+        if (window.tsCallback && typeof window.tsCallback === 'function') {
           // @ts-ignore
-          if (window.tsCallback && typeof window.tsCallback === 'function') {
-            // @ts-ignore
-            window.tsCallback(token);
-            console.log('Token passed to tsCallback');
-            return 'callback';
-          }
+          window.tsCallback(token);
+        }
 
-          // Method 4: Look for Cloudflare form and submit it
+        // @ts-ignore
+        const form = document.querySelector('form[action*="__cf_chl"]');
+        if (form) {
           // @ts-ignore
-          const form = document.querySelector('form[action*="__cf_chl"]');
-          if (form && responseInput) {
-            console.log('Found Cloudflare challenge form, submitting...');
-            // @ts-ignore
-            form.submit();
-            return 'form_submit';
-          }
-
-          return 'inputs_set';
-        } catch (err: any) {
-          console.error('Error injecting token:', err);
-          return 'error: ' + (err?.message || 'unknown');
+          form.submit();
         }
       }, solution);
 
-      logger.info(`Token injection result: ${injected}`);
-
-      // Wait for page to process and navigate
-      logger.info('Waiting for Cloudflare to process solution and navigate...');
       try {
-        // Wait for navigation (Cloudflare should redirect after successful verification)
         await page.waitForNavigation({ timeout: 15000, waitUntil: 'networkidle0' });
-        logger.info('✅ Page navigated after CAPTCHA solution!');
+        logger.info('✅ CAPTCHA verified, page loaded');
       } catch (err: any) {
-        logger.warn(`No navigation detected (${err?.message}), checking if page content loaded...`);
-        // Even without navigation, the page might have loaded the content
+        logger.info('Proceeding without navigation');
       }
 
       return true;
@@ -382,7 +203,6 @@ export class ClassActionScraper extends BaseScraper {
 
   private async extractTurnstileSitekey(page: Page): Promise<string | null> {
     return await page.evaluate(() => {
-      // Method 1: Look for data-sitekey attribute on any element
       // @ts-ignore
       const turnstileDiv = document.querySelector('[data-sitekey]');
       if (turnstileDiv) {
@@ -390,28 +210,6 @@ export class ClassActionScraper extends BaseScraper {
         return turnstileDiv.getAttribute('data-sitekey');
       }
 
-      // Method 2: Look in window.turnstile configuration
-      // @ts-ignore
-      if (window.turnstile && window.turnstile._impl && window.turnstile._impl.sitekey) {
-        // @ts-ignore
-        return window.turnstile._impl.sitekey;
-      }
-
-      // Method 3: Look for Cloudflare challenge config
-      // @ts-ignore
-      if (window._cf_chl_opt) {
-        // @ts-ignore
-        const config = window._cf_chl_opt;
-        // Sometimes the sitekey is in the challenge config
-        if (config.sitekey) return config.sitekey;
-        // Or it might be the cRay (Ray ID) for Cloudflare Turnstile
-        if (config.cRay) {
-          // For Cloudflare managed challenges, we can sometimes use the Ray ID
-          // but this is not a traditional sitekey
-        }
-      }
-
-      // Method 4: Look for iframe src with sitekey
       // @ts-ignore
       const iframes = Array.from(document.querySelectorAll('iframe'));
       for (const iframe of iframes) {
@@ -420,42 +218,19 @@ export class ClassActionScraper extends BaseScraper {
         if (src.includes('challenges.cloudflare.com') || src.includes('turnstile')) {
           const match = src.match(/[?&]sitekey=([^&]+)/);
           if (match) return match[1];
-          // Also try to extract from URL path (e.g., /v0/b/SITEKEY/api.js)
           const pathMatch = src.match(/\/b\/([a-zA-Z0-9_-]+)\//);
           if (pathMatch) return pathMatch[1];
         }
       }
 
-      // Method 5: Look in scripts for sitekey
       // @ts-ignore
       const scripts = Array.from(document.querySelectorAll('script'));
       for (const script of scripts) {
         // @ts-ignore
         const src = script.src || '';
-        if (src) {
-          // Check for sitekey parameter
-          const match = src.match(/[?&]sitekey=([^&]+)/);
-          if (match) return match[1];
-          // Check for Turnstile URL path pattern
-          if (src.includes('turnstile') || src.includes('challenges.cloudflare.com')) {
-            const pathMatch = src.match(/\/b\/([a-zA-Z0-9_-]+)\//);
-            if (pathMatch) return pathMatch[1];
-          }
-        }
-
-        // Look in script content
-        // @ts-ignore
-        const content = script.textContent || '';
-        const patterns = [
-          /sitekey['":\s=]+['"]([0-9a-zA-Z_-]{10,})['"]/,
-          /['"]sitekey['"]:\s*['"]([0-9a-zA-Z_-]{10,})['"]/,
-          /data-sitekey=['"]([0-9a-zA-Z_-]{10,})['"]/,
-          /turnstile\.render\([^,]+,\s*{[^}]*sitekey:\s*['"]([0-9a-zA-Z_-]{10,})['"]/,
-        ];
-
-        for (const pattern of patterns) {
-          const match = content.match(pattern);
-          if (match) return match[1];
+        if (src && (src.includes('turnstile') || src.includes('challenges.cloudflare.com'))) {
+          const pathMatch = src.match(/\/b\/([a-zA-Z0-9_-]+)\//);
+          if (pathMatch) return pathMatch[1];
         }
       }
 
@@ -467,108 +242,61 @@ export class ClassActionScraper extends BaseScraper {
     logger.info('Checking for Cloudflare challenge...');
 
     try {
-      // Wait a bit for the page to potentially show Cloudflare
-      await new Promise((resolve) => setTimeout(resolve, 5000));
+      await new Promise(resolve => setTimeout(resolve, 5000));
 
-      // Check if Cloudflare challenge is present
       const hasCloudflare = await page.evaluate(() => {
-        // @ts-ignore - document is available in browser context
+        // @ts-ignore
         const text = document.body.innerText || '';
-        return text.includes('Verifying you are human') ||
-          text.includes('Checking your browser') ||
+        return text.includes('Verify you are human') ||
           text.includes('Just a moment') ||
-          text.includes('Verify you are human') || // Interactive challenge
-          text.includes('Complete the action below') ||
-          // @ts-ignore - document is available in browser context
-          document.title.includes('Just a moment') ||
-          // @ts-ignore - check for Turnstile widget
+          // @ts-ignore
           document.querySelector('[name="cf-turnstile-response"]') !== null;
       });
 
-      if (hasCloudflare) {
-        const challengeType = await page.evaluate(() => {
-          // @ts-ignore
-          const text = document.body.innerText || '';
-          if (text.includes('Verify you are human') || text.includes('Complete the action below')) {
-            return 'interactive';
-          }
-          return 'automatic';
-        });
+      if (!hasCloudflare) {
+        logger.info('No Cloudflare challenge detected');
+        return;
+      }
 
-        logger.warn(`Cloudflare ${challengeType} challenge detected. Waiting for it to complete...`);
+      logger.warn('Cloudflare challenge detected, waiting...');
 
-        // Wait up to 90 seconds for Cloudflare to complete (increased for interactive challenges)
-        let attempts = 0;
-        const maxAttempts = 90;
+      let attempts = 0;
+      while (attempts < 90) {
+        await new Promise(resolve => setTimeout(resolve, 1000));
 
-        while (attempts < maxAttempts) {
-          await new Promise((resolve) => setTimeout(resolve, 1000));
-
-          const stillHasCloudflare = await page.evaluate(() => {
-            // @ts-ignore - document is available in browser context
-            const text = document.body.innerText || '';
-            const hasChallenge = text.includes('Verifying you are human') ||
-              text.includes('Checking your browser') ||
-              text.includes('Just a moment') ||
-              text.includes('Verify you are human') || // Interactive
-              text.includes('Complete the action below') ||
-              // @ts-ignore - document is available in browser context
-              document.title.includes('Just a moment') ||
-              // @ts-ignore - check for Turnstile widget
-              document.querySelector('[name="cf-turnstile-response"]') !== null;
-
-            // Also check if real content is loaded
-            // @ts-ignore - document is available in browser context
-            const hasContent = document.querySelector('.settlement-card, .js-settlements-pane');
-
-            return hasChallenge && !hasContent;
-          });
-
-          if (!stillHasCloudflare) {
-            const currentUrl = page.url();
-            logger.info(`Cloudflare challenge passed! Page content detected. Current URL: ${currentUrl}`);
-            // Wait much longer for JavaScript to fully render page content
-            logger.info('Waiting 30 seconds for page content to fully render...');
-            await new Promise((resolve) => setTimeout(resolve, 30000));
-            return;
-          }
-
-          attempts++;
-
-          // Log progress every 10 seconds
-          if (attempts % 10 === 0) {
-            logger.info(`Still waiting for Cloudflare... (${attempts}s elapsed)`);
-          }
-        }
-
-        logger.warn('Cloudflare challenge may still be present after waiting 90 seconds');
-
-        // Check if we're still on a Cloudflare challenge page
         const stillBlocked = await page.evaluate(() => {
           // @ts-ignore
           const text = document.body.innerText || '';
-          return text.includes('Verify you are human') ||
-            text.includes('Verifying you are human') ||
-            // @ts-ignore
-            document.querySelector('[name="cf-turnstile-response"]') !== null;
+          const hasChallenge = text.includes('Verify you are human') || text.includes('Just a moment');
+          // @ts-ignore
+          const hasContent = document.querySelector('.settlement-card');
+          return hasChallenge && !hasContent;
         });
 
-        if (stillBlocked) {
-          logger.warn('Still appears to be blocked by Cloudflare after 90 seconds.');
-          logger.info('Attempting to solve with 2Captcha API...');
-
-          const solved = await this.solveTurnstileCaptcha(page);
-
-          if (!solved) {
-            logger.warn('2Captcha could not solve the challenge. Skipping this scrape.');
-            return; // Exit gracefully
-          }
-
-          logger.info('✅ CAPTCHA solved! Continuing with scrape...');
-          // Continue to scraping after successful solution
+        if (!stillBlocked) {
+          logger.info('Cloudflare challenge passed, waiting for content...');
+          await new Promise(resolve => setTimeout(resolve, 30000));
+          return;
         }
-      } else {
-        logger.info('No Cloudflare challenge detected');
+
+        if (attempts++ % 10 === 0) {
+          logger.info(`Waiting... (${attempts}s)`);
+        }
+      }
+
+      const needsSolving = await page.evaluate(() => {
+        // @ts-ignore
+        return document.querySelector('[name="cf-turnstile-response"]') !== null;
+      });
+
+      if (needsSolving) {
+        logger.warn('Interactive challenge detected, using 2Captcha...');
+        const solved = await this.solveTurnstileCaptcha(page);
+        if (!solved) {
+          logger.warn('2Captcha could not solve the challenge');
+          return;
+        }
+        logger.info('✅ CAPTCHA solved!');
       }
     } catch (error) {
       logger.warn('Error checking for Cloudflare:', error);
@@ -623,37 +351,7 @@ export class ClassActionScraper extends BaseScraper {
       await this.autoScroll(this.page);
 
       // Wait a bit more for content to stabilize
-      await new Promise((resolve) => setTimeout(resolve, 3000));
-
-      // Debug: Check what's on the page
-      const debugInfo = await this.page.evaluate(() => {
-        // @ts-ignore - document is available in browser context
-        const wrapper = document.querySelector('.js-settlements-pane');
-        // @ts-ignore
-        const cards = document.querySelectorAll('.settlement-card');
-        // @ts-ignore
-        const allDivs = document.querySelectorAll('div[class*="settlement"]');
-        // @ts-ignore
-        const bodyClasses = document.body.className;
-        // @ts-ignore
-        const htmlSample = document.body.innerHTML.substring(0, 1500);
-
-        return {
-          hasWrapper: !!wrapper,
-          cardCount: cards.length,
-          divsWithSettlement: allDivs.length,
-          bodyClasses: bodyClasses,
-          // @ts-ignore
-          bodyText: document.body.innerText.substring(0, 800),
-          htmlSample: htmlSample,
-        };
-      });
-      logger.info(`Page debug - Wrapper exists: ${debugInfo.hasWrapper}, Cards found: ${debugInfo.cardCount}, Divs with 'settlement': ${debugInfo.divsWithSettlement}`);
-      logger.info(`Body classes: ${debugInfo.bodyClasses}`);
-      logger.warn(`Page text sample: ${debugInfo.bodyText}`);
-      logger.warn(`HTML sample: ${debugInfo.htmlSample}`);
-
-      // Extract settlement data
+      await new Promise(resolve => setTimeout(resolve, 3000));
       const pageData = await this.page.evaluate(() => {
         const settlements: Array<{
           title: string;
