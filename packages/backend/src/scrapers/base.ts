@@ -67,6 +67,7 @@ export abstract class BaseScraper {
 		if (parts.length > 0 && parts[0].trim()) {
 			let brand = parts[0].trim();
 			brand = brand.replace(/\s+(subscription|deceptive\s+discounts?|text\s+messages?|data\s+breach|privacy|security|false\s+advertising)$/i, '').trim();
+			brand = brand.replace(/[-–:]\s*$/, '').trim();
 
 			if (brand) {
 				return brand;
