@@ -71,6 +71,26 @@ export class TopClassActionsScraper extends BaseScraper {
           if (retries === 0) {
             throw navError;
           }
+
+          // If we got a detached frame error, create a new page
+          const errorMessage = String(navError);
+          if (errorMessage.includes('detached') || errorMessage.includes('Detached')) {
+            logger.info('Detached frame detected, creating new page...');
+            try {
+              await this.page.close();
+            } catch (e) {
+              // Ignore close errors
+            }
+            if (this.browser) {
+              this.page = await this.browser.newPage();
+              await this.page.setViewport({ width: 1920, height: 1080 });
+              await this.page.setUserAgent(
+                'Mozilla/5.0 (Windows NT 10.0; Win64; x64) AppleWebKit/537.36 (KHTML, like Gecko) Chrome/120.0.0.0 Safari/537.36'
+              );
+              await this.page.setDefaultNavigationTimeout(60000);
+            }
+          }
+
           await new Promise((resolve) => setTimeout(resolve, 3000));
         }
       }
@@ -225,7 +245,16 @@ export class TopClassActionsScraper extends BaseScraper {
 
           pageNum++;
         } catch (error) {
+          const errorMessage = String(error);
           logger.error(`Error scraping page ${pageNum}:`, error);
+
+          // If we got a detached frame error during pagination, stop scraping
+          if (errorMessage.includes('detached') || errorMessage.includes('Detached')) {
+            logger.warn('Detached frame during pagination, stopping scrape');
+            break;
+          }
+
+          // For other errors, also stop to be safe
           break;
         }
       }

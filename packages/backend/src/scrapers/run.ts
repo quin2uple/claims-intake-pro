@@ -26,9 +26,9 @@ class ScraperManager {
 
   private constructor() {
     // Register all scrapers here - easy to add new ones!
-    this.registerScraper(new ClaimDepotScraper());
+    // this.registerScraper(new ClaimDepotScraper());
     this.registerScraper(new ClassActionScraper());
-    this.registerScraper(new TopClassActionsScraper());
+    // this.registerScraper(new TopClassActionsScraper());
 
     // To add a new scraper, just add a line here:
     // this.registerScraper(new YourNewScraper());
