@@ -31,7 +31,7 @@ export const FilterBar: React.FC<FilterBarProps> = ({
   ];
 
   const statusOptions = [
-    { value: '', label: 'New Intake' },
+    { value: '', label: 'All Status' },
     { value: 'new', label: 'New' },
     { value: 'flagged', label: 'Flagged' },
     { value: 'pending', label: 'Pending' },
@@ -85,7 +85,7 @@ export const FilterBar: React.FC<FilterBarProps> = ({
             options={statusOptions}
             value={status}
             onValueChange={onStatusChange}
-            placeholder="New Intake"
+            placeholder="All Status"
           />
         </div>
 

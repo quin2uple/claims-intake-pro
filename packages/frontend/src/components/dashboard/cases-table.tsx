@@ -5,7 +5,7 @@ import { DataTable } from '@/elements/data-table';
 import type { Case } from '@/types';
 import { twMerge } from 'tailwind-merge';
 import { Times, Warning } from '../common';
-import { Check, Trash, Trash2 } from 'lucide-react';
+import { Check, Trash2 } from 'lucide-react';
 
 interface CasesTableProps {
   cases: Case[];
@@ -17,6 +17,8 @@ interface CasesTableProps {
   };
   onPaginationChange?: (pageIndex: number) => void;
   onViewCase: (id: number) => void;
+  onApproveCase: (id: number) => void;
+  onRejectCase: (id: number) => void;
   onDeleteCase: (id: number) => void;
   onResolveCase: (id: number) => void;
   isLoading?: boolean;
@@ -31,7 +33,7 @@ const getBrandInitials = (brand: string) => {
     .slice(0, 2);
 };
 
-const getStatusBadgeVariant = (status: string): 'new' | 'flagged' | 'pending' => {
+const getStatusBadgeVariant = (status: string): 'new' | 'flagged' | 'pending' | 'success' | 'warning' | 'danger' => {
   switch (status.toLowerCase()) {
     case 'new':
       return 'new';
@@ -39,6 +41,10 @@ const getStatusBadgeVariant = (status: string): 'new' | 'flagged' | 'pending' =>
       return 'flagged';
     case 'pending':
       return 'pending';
+    case 'approved':
+      return 'success';
+    case 'rejected':
+      return 'danger';
     default:
       return 'new';
   }
@@ -71,6 +77,8 @@ export const CasesTable: React.FC<CasesTableProps> = ({
   pagination,
   onPaginationChange,
   onViewCase,
+  onApproveCase,
+  onRejectCase,
   onDeleteCase,
   onResolveCase,
   isLoading,
@@ -182,48 +190,41 @@ export const CasesTable: React.FC<CasesTableProps> = ({
               row.original.duplicate_of && 'bg-yellow-50'
             )}
           >
-            <IconButton
-              icon={<Check size={14} />}
-              onClick={() => onViewCase(row.original.id)}
-              title="Approve"
-              variant="primary"
-              className="rounded-full"
-              size='sm'
-            />
+            {row.original.status !== 'flagged' && (
+              <IconButton
+                icon={<Check size={14} />}
+                onClick={() => onApproveCase(row.original.id)}
+                title="Approve"
+                variant="primary"
+                className="rounded-full"
+                size='sm'
+              />
+            )}
 
-            {row.original.status !== 'flagged' && <IconButton
-              icon={<span className="text-white"><Times /></span>}
-              onClick={() => onDeleteCase(row.original.id)}
-              title="Delete"
-              variant="secondary"
-              size="sm"
-              className="rounded-full bg-gray-400"
-            />}
+            {row.original.status !== 'flagged' && (
+              <IconButton
+                icon={<span className="text-white"><Times /></span>}
+                onClick={() => onRejectCase(row.original.id)}
+                title="Reject"
+                variant="secondary"
+                size="sm"
+                className="rounded-full bg-gray-400"
+              />
+            )}
 
-            {row.original.status === 'flagged' ? <IconButton
-              icon={
-                <Trash2 size={18} />
-              }
-              onClick={() => { }}
-              title="Copy"
-              variant="ghost"
-              size="sm"
-            /> : <IconButton
-              icon={
-                <svg className="w-5 h-5" fill="none" stroke="currentColor" viewBox="0 0 24 24">
-                  <path
-                    strokeLinecap="round"
-                    strokeLinejoin="round"
-                    strokeWidth={2}
-                    d="M8 16H6a2 2 0 01-2-2V6a2 2 0 012-2h8a2 2 0 012 2v2m-6 12h8a2 2 0 002-2v-8a2 2 0 00-2-2h-8a2 2 0 00-2 2v8a2 2 0 002 2z"
-                  />
-                </svg>
-              }
-              onClick={() => { }}
-              title="Copy"
-              variant="ghost"
-              size="sm"
-            />}
+            {row.original.status === 'flagged' && (
+              <IconButton
+                icon={<Trash2 size={18} />}
+                onClick={() => {
+                  if (window.confirm('Are you sure you want to permanently delete this case?')) {
+                    onDeleteCase(row.original.id);
+                  }
+                }}
+                title="Delete"
+                variant="ghost"
+                size="sm"
+              />
+            )}
 
             {row.original.status === 'flagged' && (
               <button
@@ -237,7 +238,7 @@ export const CasesTable: React.FC<CasesTableProps> = ({
         ),
       },
     ],
-    [onViewCase, onDeleteCase, onResolveCase]
+    [onViewCase, onApproveCase, onRejectCase, onDeleteCase, onResolveCase]
   );
 
   return (

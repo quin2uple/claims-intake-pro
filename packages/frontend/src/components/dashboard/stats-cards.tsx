@@ -21,7 +21,7 @@ export const StatsCards: React.FC<StatsCardsProps> = ({
         <div className="flex flex-col items-start justify-between">
           <p className="text-sm font-semibold text-gray-500 uppercase tracking-widest">Total New</p>
           <div className="flex justify-between w-full items-end">
-            <p className="mt-2 text-4xl font-bold text-gray-900">{totalNew}</p>
+            <p className="mt-2 text-3xl font-bold text-gray-900">{totalNew}</p>
             <span className="inline-flex items-center py-0.5 rounded-full text-sm font-medium text-green-700">
               +5%
             </span>
@@ -37,7 +37,7 @@ export const StatsCards: React.FC<StatsCardsProps> = ({
           </p>
 
           <div className="flex justify-between w-full items-end">
-            <p className="mt-2 text-4xl font-bold text-gray-900">{processingTime}</p>
+            <p className="mt-2 text-3xl font-bold text-gray-900">{processingTime}</p>
 
             <span className="text-sm text-gray-400 font-semibold">Avg</span>
           </div>
@@ -71,7 +71,7 @@ export const StatsCards: React.FC<StatsCardsProps> = ({
               Resolution Rate
             </p>
             <div className="flex justify-between">
-              <p className="mt-2 text-4xl font-bold text-gray-900">{resolutionRate}%</p>
+              <p className="mt-2 text-3xl font-bold text-gray-900">{resolutionRate}%</p>
               <div className="mt-3 bg-gray-200 rounded-full h-2 w-18">
                 <div
                   className="bg-blue-600 h-2 rounded-full transition-all"

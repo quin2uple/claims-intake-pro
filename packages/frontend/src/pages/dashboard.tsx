@@ -45,9 +45,25 @@ export const Dashboard: React.FC = () => {
     navigate(getCaseDetailRoute(id));
   };
 
-  const handleDeleteCase = async (id: number) => {
-    if (!window.confirm('Are you sure you want to delete this case?')) return;
+  const handleApproveCase = async (id: number) => {
+    try {
+      await updateCaseStatusMutation.mutateAsync({ id, status: 'approved' });
+    } catch (error) {
+      console.error('Error approving case:', error);
+      alert('Failed to approve case');
+    }
+  };
 
+  const handleRejectCase = async (id: number) => {
+    try {
+      await updateCaseStatusMutation.mutateAsync({ id, status: 'rejected' });
+    } catch (error) {
+      console.error('Error rejecting case:', error);
+      alert('Failed to reject case');
+    }
+  };
+
+  const handleDeleteCase = async (id: number) => {
     try {
       await deleteCaseMutation.mutateAsync({ id });
     } catch (error) {
@@ -58,7 +74,7 @@ export const Dashboard: React.FC = () => {
 
   const handleResolveCase = async (id: number) => {
     try {
-      await updateCaseStatusMutation.mutateAsync({ id, status: 'approved' });
+      await updateCaseStatusMutation.mutateAsync({ id, status: 'new' });
     } catch (error) {
       console.error('Error resolving case:', error);
       alert('Failed to resolve case');
@@ -90,6 +106,8 @@ export const Dashboard: React.FC = () => {
         pagination={pagination}
         onPaginationChange={setCurrentPage}
         onViewCase={handleViewCase}
+        onApproveCase={handleApproveCase}
+        onRejectCase={handleRejectCase}
         onDeleteCase={handleDeleteCase}
         onResolveCase={handleResolveCase}
         isLoading={casesLoading}

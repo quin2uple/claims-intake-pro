@@ -1,6 +1,7 @@
 import { useReactTable, getCoreRowModel, flexRender, ColumnDef } from '@tanstack/react-table';
 import { cn } from '@/lib/utils';
 import { twMerge } from 'tailwind-merge';
+import { ChevronLeft, ChevronRight } from 'lucide-react';
 
 interface DataTableProps<TData> {
   columns: ColumnDef<TData, any>[];
@@ -67,7 +68,7 @@ export function DataTable<TData>({
           key={pageNumber}
           onClick={() => onPaginationChange?.(pageNumber)}
           className={cn(
-            'min-w-[40px] h-10 px-3 rounded-lg text-sm font-medium transition-colors',
+            'min-w-9 min-h-9 px-3 rounded-lg text-sm font-medium transition-colors',
             isActive
               ? 'bg-blue-600 text-white'
               : 'bg-white text-gray-700 hover:bg-gray-100 border border-gray-300'
@@ -102,7 +103,7 @@ export function DataTable<TData>({
                             maxWidth: size,
                           }
                       }
-                      className={twMerge('px-6 py-3 text-left text-xs font-semibold text-gray-600 uppercase tracking-wider', isFlexColumn ? 'flex-1' : '')}
+                      className={twMerge('px-6 py-4 text-left text-xs font-semibold text-gray-600 uppercase tracking-wider', isFlexColumn ? 'flex-1' : '')}
                     >
                       {header.isPlaceholder
                         ? null
@@ -159,11 +160,11 @@ export function DataTable<TData>({
         <div className="flex items-center justify-between p-6 border border-t-0 rounded-b-2xl">
           <div className="text-sm text-gray-700">
             Showing{' '}
-            <span className="font-medium">{pagination.pageIndex * pagination.pageSize + 1}</span> to{' '}
-            <span className="font-medium">
+            <span className="font-semibold">{pagination.pageIndex * pagination.pageSize + 1}</span> to{' '}
+            <span className="font-semibold">
               {Math.min((pagination.pageIndex + 1) * pagination.pageSize, pagination.totalItems)}
             </span>{' '}
-            of <span className="font-medium">{pagination.totalItems}</span> entries
+            of <span className="font-semibold">{pagination.totalItems}</span> entries
           </div>
 
           <div className="flex items-center gap-2">
@@ -177,14 +178,7 @@ export function DataTable<TData>({
                   : 'bg-white text-gray-700 hover:bg-gray-100'
               )}
             >
-              <svg className="w-5 h-5" fill="none" stroke="currentColor" viewBox="0 0 24 24">
-                <path
-                  strokeLinecap="round"
-                  strokeLinejoin="round"
-                  strokeWidth={2}
-                  d="M15 19l-7-7 7-7"
-                />
-              </svg>
+              <ChevronLeft />
             </button>
 
             {renderPaginationButtons()}
@@ -199,14 +193,7 @@ export function DataTable<TData>({
                   : 'bg-white text-gray-700 hover:bg-gray-100'
               )}
             >
-              <svg className="w-5 h-5" fill="none" stroke="currentColor" viewBox="0 0 24 24">
-                <path
-                  strokeLinecap="round"
-                  strokeLinejoin="round"
-                  strokeWidth={2}
-                  d="M9 5l7 7-7 7"
-                />
-              </svg>
+              <ChevronRight />
             </button>
           </div>
         </div>
