@@ -105,42 +105,34 @@ export class ClaimDepotScraper extends BaseScraper {
 							return;
 						}
 
-						// Get the container text which has the full card content
-						const fullCardText = containerText;
+						// Extract title directly from the title link (much more reliable than text parsing)
+						// Look for the <a> tag with class "c-title-3" or similar classes used for titles
+						const $titleLink = $container.find('a.c-title-3, a[fs-cmssort-field="name"]');
+						let title = $titleLink.text().trim();
 
-						// Extract title from the card text
-						// Pattern: Status badges, then title, then details
-						// Example: "No ProofOpen for ClaimsHopSkipDrive $1.99M Data Breach Class Action Settlement $100 - $5,000..."
-						let title = '';
+						// Fallback: If no title link found, try parsing from container text (legacy approach)
+						if (!title) {
+							const fullCardText = containerText;
+							let cleanText = fullCardText
+								.replace(/\bOpen for Claims\b/gi, '')
+								.replace(/\bClosed\b/gi, '')
+								.replace(/\bPending Court Approval\b/gi, '')
+								.replace(/\bPreliminar(?:y|ily) Approved\b/gi, '')
+								.replace(/\bSettlement Approved\b/gi, '')
+								.trim();
 
-						// Remove status badges first
-						let cleanText = fullCardText
-							.replace(/^.*?(?=\b[A-Z])/, '') // Remove everything before first capital letter after badges
-							.replace(/\bNo Proof\b/gi, '')
-							.replace(/\bOpen for Claims\b/gi, '')
-							.replace(/\bClosed\b/gi, '')
-							.replace(/\bPending Court Approval\b/gi, '')
-							.replace(/\bPreliminar(?:y|ily) Approved\b/gi, '')
-							.replace(/\bSettlement Approved\b/gi, '')
-							.trim();
-
-						// Extract title - usually ends before dollar amounts, dates, or "Days left"
-						// Match until we hit a dollar amount, date pattern, or "Days left"
-						const titleMatch = cleanText.match(/^([^$]+?)(?=\s*\$|\s*\d+\s*Days|January|February|March|April|May|June|July|August|September|October|November|December)/i);
-
-						if (titleMatch) {
-							title = titleMatch[1].trim();
-						} else {
-							// Fallback: take first 100 chars before common delimiters
-							const parts = cleanText.split(/\s*\$|\s+\d+\s*Days/i);
-							title = parts[0].trim();
+							const titleMatch = cleanText.match(/^([^$]+?)(?=\s*\$|\s*\d+\s*Days|January|February|March|April|May|June|July|August|September|October|November|December)/i);
+							if (titleMatch) {
+								title = titleMatch[1].trim();
+							} else {
+								const parts = cleanText.split(/\s*\$|\s+\d+\s*Days/i);
+								title = parts[0].trim();
+							}
 						}
 
-						// Final cleanup - remove any remaining badge text at the start
+						// Minimal cleanup - only normalize whitespace
 						title = title
-							.replace(/^(No Proof|Open for Claims|Closed|Preliminarily Approved|Pending Court Approval|Settlement Approved)+/gi, '')
 							.replace(/\s+/g, ' ')
-							.replace(/\d+\s*Days?\s*left/gi, '')
 							.trim();
 
 						// Skip if no valid title
