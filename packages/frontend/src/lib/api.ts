@@ -15,6 +15,7 @@ export const casesApi = {
     status?: string;
     source?: string;
     brand?: string;
+    deadlineDays?: number;
     page?: number;
     limit?: number;
   }): Promise<CasesResponse> => {

@@ -39,7 +39,7 @@ services:
       NODE_ENV: ${NODE_ENV:-production}
       DATABASE_URL: postgresql://${POSTGRES_USER:-claims_user}:${POSTGRES_PASSWORD:-claims_password}@postgres:5432/${POSTGRES_DB:-claims_intake}
       PORT: 3001
-      SCRAPER_CRON: ${SCRAPER_CRON:-0 * * * *}
+      SCRAPER_CRON: ${SCRAPER_CRON:-0 0 * * *}
       TWOCAPTCHA_API_KEY: ${TWOCAPTCHA_API_KEY:-}
     ports:
       - "3001:3001"

@@ -50,8 +50,8 @@ async function start() {
       logger.info(`Server running on port ${PORT}`);
     });
 
-    // Runs immediately on startup, then every hour
-    const cronSchedule = process.env.SCRAPER_CRON || '0 * * * *'; // Every hour
+    // Runs immediately on startup, then once daily at midnight
+    const cronSchedule = process.env.SCRAPER_CRON || '0 0 * * *'; // Daily at midnight
 
     await scraperManager.init({
       runImmediately: true,

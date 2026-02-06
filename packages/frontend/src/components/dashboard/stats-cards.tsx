@@ -70,9 +70,9 @@ export const StatsCards: React.FC<StatsCardsProps> = ({
             <p className="text-sm font-semibold text-gray-600 uppercase tracking-wide">
               Resolution Rate
             </p>
-            <div className="flex justify-between">
-              <p className="mt-2 text-3xl font-bold text-gray-900">{resolutionRate}%</p>
-              <div className="mt-3 bg-gray-200 rounded-full h-2 w-18">
+            <div className="flex justify-between items-end">
+              <p className="mt-2 text-3xl font-bold text-blue-600">{resolutionRate}%</p>
+              <div className="mt-3 bg-gray-200 rounded-full h-2 w-16 overflow-hidden">
                 <div
                   className="bg-blue-600 h-2 rounded-full transition-all"
                   style={{ width: `${resolutionRate}%` }}

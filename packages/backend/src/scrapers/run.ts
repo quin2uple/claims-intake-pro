@@ -59,7 +59,7 @@ class ScraperManager {
   }): Promise<void> {
     const {
       runImmediately = true,
-      cronSchedule = '0 * * * *' // Every hour by default
+      cronSchedule = '0 0 * * *' // Daily at midnight by default
     } = options || {};
 
     logger.info(`Initializing ScraperManager with ${this.scrapers.length} scrapers`);
@@ -89,7 +89,7 @@ class ScraperManager {
       await this.runAll();
     });
 
-    logger.info(`Scrapers scheduled with cron: ${cronSchedule} (every hour)`);
+    logger.info(`Scrapers scheduled with cron: ${cronSchedule}`);
   }
 
   /**

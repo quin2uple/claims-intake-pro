@@ -23,6 +23,7 @@ export const Dashboard: React.FC = () => {
     brand: searchBrand || undefined,
     source: source || undefined,
     status: status || undefined,
+    deadlineDays: deadline ? parseInt(deadline) : undefined,
     page: currentPage + 1, // Convert to 1-indexed for API
     limit: ITEMS_PER_PAGE,
   });

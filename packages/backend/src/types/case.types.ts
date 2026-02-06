@@ -4,6 +4,7 @@ export interface GetCasesQuery {
   status?: string;
   source?: string;
   brand?: string;
+  deadlineDays?: number;
   page?: number;
   limit?: number;
   sortBy?: string;

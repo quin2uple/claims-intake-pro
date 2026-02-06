@@ -6,6 +6,7 @@ export const useCases = (params?: {
   status?: string;
   source?: string;
   brand?: string;
+  deadlineDays?: number;
   page?: number;
   limit?: number;
 }) => {

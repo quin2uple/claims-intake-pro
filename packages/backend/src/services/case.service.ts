@@ -15,6 +15,7 @@ class CaseService {
 			status,
 			source,
 			brand,
+			deadlineDays,
 			page = 1,
 			limit = 10,
 			sortBy = 'createdAt',
@@ -38,6 +39,18 @@ class CaseService {
 			where.brand = {
 				contains: brand,
 				mode: 'insensitive',
+			};
+		}
+
+		if (deadlineDays) {
+			const today = new Date();
+			today.setHours(0, 0, 0, 0);
+			const futureDate = new Date(today);
+			futureDate.setDate(futureDate.getDate() + deadlineDays);
+			
+			where.deadline = {
+				gte: today,
+				lte: futureDate,
 			};
 		}
 
